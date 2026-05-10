@@ -1,12 +1,16 @@
 
+#include <GyverOLED.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
 
+#define OLED_SPI_SPEED 8000000ul
 #define WIDTH 128 // OLED display width, in pixels
 #define HEIGHT 64 // OLED display height, in pixels
 
-Adafruit_SSD1306 display(WIDTH, HEIGHT, &Wire, -1);
+// Adafruit_SSD1306 display(WIDTH, HEIGHT, &Wire, -1);
+GyverOLED<SSH1106_128x64> oled;
+// GyverOLED<SSH1106_128x64, OLED_NO_BUFFER> oled(0x3C);
 
 // ## PINs 
 
@@ -19,16 +23,20 @@ int capacitorPIN = 17; // on esp32 17
 unsigned long totalCounts = 0;
 volatile unsigned long counts = 0;
 unsigned long lastTime = 0;
-unsigned long interval = 1000; // 1 second interval
+unsigned long interval = 1000; // interval in ms
 float cpm = 0.0;
 float usv_per_hour = 0.0;
-
 const float CAL_FACTOR = 1; // 0.0057; // change to the tubes factor
 
 // ## Tone Values
 
 // const int freq = 2000;    // Hz
 const int duration = 3;   // ms
+
+// ## Display Values
+
+const int sda_pin = 21;
+const int sck_pin = 18;
 
 void IRAM_ATTR radiationDetected(){
   counts++;
@@ -39,27 +47,10 @@ void IRAM_ATTR radiationDetected(){
   digitalWrite(LEDpin, LOW);
 }
 
-void displayStartUp() {
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
-  }
-
-  delay(2000);
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
-  display.println("Hello World!"); // Display static text
-  display.display(); 
-  delay(2000);
-  display.clearDisplay();
-}
-
 void setup() {
   Serial.begin(115200);
 
-  displayStartUp();
+  // displayStartUp();
 
   pinMode(fakeRod, OUTPUT);
   digitalWrite(fakeRod, HIGH);
@@ -68,6 +59,14 @@ void setup() {
   pinMode(capacitorPIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(capacitorPIN), radiationDetected, RISING);
 
+  Wire.begin(sda_pin, sck_pin);
+  Wire.setClock(400000);
+  delay(500);
+  
+  oled.init();
+  oled.clear();
+  oled.setScale(1);
+  oled.update();
 }
 
 void loop() {
@@ -91,13 +90,13 @@ void loop() {
 
     // print to LCD
     
-    display.clearDisplay();
-    display.setCursor(0,0); 
-    display.println("CPS: ");    display.println(countCopy);
-    display.println("CPM: ");    display.println(cpm);
-    display.println("Dose rate: ");    display.println(usv_per_hour, 3);    display.println(" uSv/h");
-    display.println("Total clicks: ");    display.println(totalCounts);
-    display.display();
+    oled.clear();
+    oled.setCursorXY(0,1); 
+    oled.print("CPS: ");    oled.println(countCopy);
+    oled.print("CPM: ");    oled.println(cpm);
+    oled.print("Dose rate: ");    oled.print(usv_per_hour, 2);    oled.println(" uSv/h");
+    oled.print("Total clicks: ");    oled.println(totalCounts);
+    oled.update();
 
     Serial.print("CPS: "); Serial.print(countCopy);
     Serial.print("  CPM: "); Serial.print(cpm);
