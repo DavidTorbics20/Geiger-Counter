@@ -15,9 +15,9 @@ GyverOLED<SSH1106_128x64> oled;
 
 // ## PINs 
 
-int LEDpin = 23; // on esp32 23
-int fakeRod = 19; // on esp32 19
-int capacitorPIN = 17; // on esp32 17
+const int LEDpin = D5; // on esp32 23 // on D1 mini D5
+// const int fakeRod = 19; // on esp32 19 // on D1 mini undef.
+const int capacitorPIN = D7; // on esp32 17 // on D1 mini D7
 
 // ## Geiger Counter Stats
 
@@ -75,8 +75,8 @@ void setup() {
 
   // starting display and geigen counter
 
-  pinMode(fakeRod, OUTPUT);
-  digitalWrite(fakeRod, HIGH);
+  // pinMode(fakeRod, OUTPUT);
+  // digitalWrite(fakeRod, HIGH);
   
   pinMode(LEDpin, OUTPUT);
   pinMode(capacitorPIN, INPUT_PULLUP);
