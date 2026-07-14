@@ -5,7 +5,7 @@
 // #include <Adafruit_GFX.h>
 // #include <Adafruit_SSD1306.h>
 
-#define OLED_SPI_SPEED 8000000ul
+#define OLED_SPI_SPEED 1000000ul // why 8000000ul not work? 
 #define WIDTH 128 // OLED display width, in pixels
 #define HEIGHT 64 // OLED display height, in pixels
 
@@ -21,11 +21,12 @@ int capacitorPIN = 17; // on esp32 17
 
 // ## Geiger Counter Stats
 
-unsigned long totalCounts = 0;
-volatile unsigned long counts = 0;
+volatile unsigned long clicks = 0;
+unsigned long lastClicks = 0;
 float cpm = 0.0;
 float usv_per_hour = 0.0;
-const float CAL_FACTOR = 1; // 0.0057; // change to the tubes factor
+const float CONVERSION_FACTOR = 0.00332; // 0.0057; // change to the tubes factor
+const float DEAD_TIME_SEC = 0.000180; // 180 microseconds for the J305 geiger tube (could be adjusted)
 
 // ## CO2 Sensor Values
 // co2 sensor address 0x62
@@ -46,12 +47,12 @@ const int sck_pin = 18;
 // ## Interval Timing
 
 unsigned long lastTime = 0;
-const unsigned long interval = 1000; // interval in ms
+const unsigned int interval = 1000; // interval in ms KEEP AT 1000 !!!
 
 // interrupt for the geiger counter rod 
 
 void IRAM_ATTR radiationDetected(){
-  counts++;
+  clicks++;
 
   digitalWrite(LEDpin, HIGH);
   int freq = 2000 + random(0, 10);
@@ -96,35 +97,44 @@ void loop() {
 
   if (currentTime - lastTime >= interval) {
 
-    // is it neccessary to detach and then reattach the PIN?
-    detachInterrupt(digitalPinToInterrupt(capacitorPIN));
+    // is it neccessary to detach and then reattach the PIN? YES
+    // detachInterrupt(digitalPinToInterrupt(capacitorPIN));
+    noInterrupts();
 
-    unsigned long countCopy = counts;
-    totalCounts += counts;
-    counts = 0;
+    unsigned long currentTotalClicks = clicks;
+
+    //attachInterrupt(digitalPinToInterrupt(capacitorPIN), radiationDetected, RISING);
+    interrupts();
+
+    float elapsedTime = (currentTime - lastTime) / interval; // interval has to be 1000 for seconds to work
+    unsigned long clicksInWindow = currentTotalClicks - lastClicks;
+    float cps = clicksInWindow / elapsedTime;
+
+    // for highly radioactive areas the dead time correction has to be applied
+    float trueCPS = cps / (1.0 - (cps * DEAD_TIME_SEC));
+
+    // Calculate clicks per minute and uSv/h
+    float cpm = trueCPS * 60.0;
+    float usv_per_hour = cpm * CONVERSION_FACTOR;
+
+    lastClicks = currentTotalClicks;
     lastTime = currentTime;
-
-    attachInterrupt(digitalPinToInterrupt(capacitorPIN), radiationDetected, RISING);
-
-    // Calculate counts per minute and uSv/h
-    cpm = countCopy * 60.0;                  // counts in 1 second * 60
-    usv_per_hour = cpm * CAL_FACTOR;         // convert CPM to uSv/h
 
     // print to LCD
     
     oled.clear();
     oled.setCursorXY(0,1); 
-    oled.print("CPS: ");    oled.println(countCopy);
+    oled.print("CPS: ");    oled.println(trueCPS);
     oled.print("CPM: ");    oled.println(cpm);
-    oled.print("Rate: ");      oled.print(usv_per_hour, 2);    oled.println(" uSv/h"); // Dose rate
-    oled.print("#Clicks: ");   oled.println(totalCounts); // total clicks 
+    oled.print("Dose: ");      oled.print(usv_per_hour, 2);    oled.println(" uSv/h"); // Dose rate
+    oled.print("Clicks: ");   oled.println(currentTotalClicks); // total clicks 
     oled.print("CO2: ");    oled.print(co2Sensor.getCO2());          oled.println(" ppm");
     oled.print(co2Sensor.getTemperature(), 1);    oled.print("C ");   oled.print(co2Sensor.getHumidity(), 1);   oled.println("%");
     oled.update();
 
     // temporary serial output 
 
-    Serial.print("CPS: "); Serial.print(countCopy);
+    Serial.print("CPS: "); Serial.print(trueCPS);
     Serial.print("  CPM: "); Serial.print(cpm);
     Serial.print("  Dose rate: ");
     Serial.print(usv_per_hour, 3);
