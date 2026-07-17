@@ -27,6 +27,13 @@ float cpm = 0.0;
 float usv_per_hour = 0.0;
 const float CONVERSION_FACTOR = 0.00332; // 0.0057; // change to the tubes factor
 const float DEAD_TIME_SEC = 0.000180; // 180 microseconds for the J305 geiger tube (could be adjusted)
+// technically I can also change it to 0.00009 (90 microseconds)
+// values are typical between 75-200 microseconds
+
+const int WINDOW_SIZE = 60;
+float cpsHistory[windowSize] = {0};
+bool historyFilled = false;
+int historyCounter = 0;
 
 // ## CO2 Sensor Values
 // co2 sensor address 0x62
@@ -113,8 +120,23 @@ void loop() {
     // for highly radioactive areas the dead time correction has to be applied
     float trueCPS = cps / (1.0 - (cps * DEAD_TIME_SEC));
 
+    // calculate CPM based on moving average 
+    cpsHistory[historyCounter] = trueCPS;
+    historyCounter++;
+
+    if (historyCounter > WINDOW_SIZE) {
+      historyCounter = 0;
+      historyFilled = true;
+    }
+
+    for (int i = 0; i < WINDOW_SIZE; i++) {
+      cpsSum += cpsHistory[i];
+    }
+
+    // do I really need that peace of code here? TEST TOMORROW
+
     // Calculate clicks per minute and uSv/h
-    float cpm = trueCPS * 60.0;
+    float cpm = cpsSum; // I can do this because I already sum up 60 values from before
     float usv_per_hour = cpm * CONVERSION_FACTOR;
 
     lastClicks = currentTotalClicks;
@@ -126,7 +148,7 @@ void loop() {
     oled.setCursorXY(0,1); 
     oled.print("CPS: ");    oled.println(trueCPS);
     oled.print("CPM: ");    oled.println(cpm);
-    oled.print("Dose: ");      oled.print(usv_per_hour, 2);    oled.println(" uSv/h"); // Dose rate
+    oled.print("Dose: ");      oled.print(usv_per_hour, 4);    oled.println(" uSv/h"); // Dose rate
     oled.print("Clicks: ");   oled.println(currentTotalClicks); // total clicks 
     oled.print("CO2: ");    oled.print(co2Sensor.getCO2());          oled.println(" ppm");
     oled.print(co2Sensor.getTemperature(), 1);    oled.print("C ");   oled.print(co2Sensor.getHumidity(), 1);   oled.println("%");
