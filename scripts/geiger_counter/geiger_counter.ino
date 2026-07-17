@@ -31,7 +31,7 @@ const float DEAD_TIME_SEC = 0.000180; // 180 microseconds for the J305 geiger tu
 // values are typical between 75-200 microseconds
 
 const int WINDOW_SIZE = 60;
-float cpsHistory[windowSize] = {0};
+float cpsHistory[WINDOW_SIZE] = {0};
 bool historyFilled = false;
 int historyCounter = 0;
 
@@ -128,6 +128,8 @@ void loop() {
       historyCounter = 0;
       historyFilled = true;
     }
+
+    float cpsSum;
 
     for (int i = 0; i < WINDOW_SIZE; i++) {
       cpsSum += cpsHistory[i];
